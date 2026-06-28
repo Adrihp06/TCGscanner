@@ -16,7 +16,7 @@ from urllib.parse import parse_qs, urlparse
 from .catalog import CardCatalog
 from .models import CardIdentity
 from .pricing import default_price_provider
-from .visual import VisualCardMatcher
+from .visual import CropHint, VisualCardMatcher
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBLIC_DIR = ROOT / "public"
@@ -133,6 +133,18 @@ class RiftboundHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(result)
             return
+        if parsed.path == "/api/price":
+            try:
+                payload = self._read_json()
+                result = self._price(payload)
+            except ValueError as exc:
+                self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            except Exception as exc:
+                self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+                return
+            self._send_json(result)
+            return
         if parsed.path != "/api/resolve":
             self._send_error(HTTPStatus.NOT_FOUND, "Endpoint not found.")
             return
@@ -172,20 +184,18 @@ class RiftboundHandler(BaseHTTPRequestHandler):
             temp.flush()
             image_path = temp.name
             top_k = int(self._field_value(form, "top_k", "5"))
-            result = self.visual_matcher.search(image_path, top_k=top_k)
+            crop_hint = self._crop_hint_from_form(form)
+            result = self.visual_matcher.search(image_path, top_k=top_k, crop_hint=crop_hint)
 
         matches = [self._visual_match_json(match) for match in result.matches]
         best = matches[0] if matches else None
-        price = None
-        if result.matches:
-            price = self.price_provider.get_price(result.matches[0].card, language, seller_country, price_mode)
 
         return {
             "card": best["card"] if best else None,
             "best_match": best,
             "matches": matches,
             "confidence": best["score"] if best else 0.0,
-            "price": self._price_json(price) if price else None,
+            "price": None,
             "debug": result.debug,
             "latency_ms": result.latency_ms,
             "input": {
@@ -196,6 +206,21 @@ class RiftboundHandler(BaseHTTPRequestHandler):
             },
             "warnings": result.warnings,
         }
+
+    def _price(self, payload: dict[str, object]) -> dict[str, object]:
+        card_id = str(payload.get("card_id") or "").strip()
+        language = str(payload.get("language") or "EN").upper()
+        seller_country = str(payload.get("seller_country") or "ES").upper()
+        price_mode = str(payload.get("price_mode") or "min").lower()
+        if price_mode not in {"min", "trend"}:
+            raise ValueError("price_mode must be 'min' or 'trend'.")
+        if not card_id:
+            raise ValueError("Provide card_id.")
+        card = next((item for item in self.catalog.cards if item.card_id == card_id), None)
+        if not card:
+            raise ValueError("Card id was not found.")
+        price = self.price_provider.get_price(card, language, seller_country, price_mode)
+        return {"price": self._price_json(price)}
 
     def _detect_region(self) -> dict[str, object]:
         form = cgi.FieldStorage(
@@ -227,6 +252,23 @@ class RiftboundHandler(BaseHTTPRequestHandler):
                 for item in detections
             ],
         }
+
+    def _crop_hint_from_form(self, form: cgi.FieldStorage) -> CropHint | None:
+        names = ["bbox_x", "bbox_y", "bbox_width", "bbox_height", "bbox_image_width", "bbox_image_height"]
+        if any(name not in form for name in names):
+            return None
+        try:
+            values = {name: float(self._field_value(form, name, "0")) for name in names}
+        except ValueError:
+            return None
+        return CropHint(
+            x=values["bbox_x"],
+            y=values["bbox_y"],
+            width=values["bbox_width"],
+            height=values["bbox_height"],
+            image_width=values["bbox_image_width"],
+            image_height=values["bbox_image_height"],
+        )
 
     def _upload_dataset_image(self) -> dict[str, object]:
         form = cgi.FieldStorage(
