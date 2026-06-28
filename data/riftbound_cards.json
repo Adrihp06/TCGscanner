@@ -1,0 +1,96 @@
+{
+  "source": "local-cache",
+  "cards": [
+    {
+      "card_id": "OGN-045",
+      "name": "Defy",
+      "set_code": "OGN",
+      "set_name": "Origins",
+      "printed_number": "45/298",
+      "language": "English",
+      "language_code": "EN",
+      "cardmarket_product_id": null,
+      "pricecharting_url": "https://www.pricecharting.com/game/riftbound-origins/defy-45",
+      "pricecharting_set_slug": "riftbound-origins",
+      "image_url": null
+    },
+    {
+      "card_id": "OGN-296",
+      "name": "Void Gate",
+      "set_code": "OGN",
+      "set_name": "Origins",
+      "printed_number": "296/298",
+      "language": "English",
+      "language_code": "EN",
+      "cardmarket_product_id": null,
+      "pricecharting_url": null,
+      "pricecharting_set_slug": "riftbound-origins",
+      "image_url": null
+    },
+    {
+      "card_id": "UNL-064",
+      "name": "Unleashed Card 064",
+      "set_code": "UNL",
+      "set_name": "Unleashed",
+      "printed_number": "64/219",
+      "language": "English",
+      "language_code": "EN",
+      "cardmarket_product_id": null,
+      "pricecharting_url": null,
+      "pricecharting_set_slug": "riftbound-unleashed",
+      "image_url": null
+    },
+    {
+      "card_id": "UNL-001A",
+      "name": "Unleashed Alter 001a",
+      "set_code": "UNL",
+      "set_name": "Unleashed",
+      "printed_number": "1a/260",
+      "language": "English",
+      "language_code": "EN",
+      "cardmarket_product_id": null,
+      "pricecharting_url": null,
+      "pricecharting_set_slug": "riftbound-unleashed",
+      "image_url": null
+    },
+    {
+      "card_id": "UNL-261",
+      "name": "Unleashed Overnumber 261",
+      "set_code": "UNL",
+      "set_name": "Unleashed",
+      "printed_number": "261/260",
+      "language": "English",
+      "language_code": "EN",
+      "cardmarket_product_id": null,
+      "pricecharting_url": null,
+      "pricecharting_set_slug": "riftbound-unleashed",
+      "image_url": null
+    },
+    {
+      "card_id": "OGN-197",
+      "name": "Teemo - Scout",
+      "set_code": "OGN",
+      "set_name": "Origins",
+      "printed_number": "197/298",
+      "language": "English",
+      "language_code": "EN",
+      "cardmarket_product_id": null,
+      "pricecharting_url": "https://www.pricecharting.com/game/riftbound-origins/teemo-scout-197",
+      "pricecharting_set_slug": "riftbound-origins",
+      "image_url": null
+    },
+    {
+      "card_id": "PRO-197B",
+      "name": "Teemo - Scout [GG EZ]",
+      "set_code": "PRO",
+      "set_name": "Promo",
+      "printed_number": "197b/298",
+      "language": "English",
+      "language_code": "EN",
+      "cardmarket_product_id": null,
+      "pricecharting_url": "https://www.pricecharting.com/game/riftbound-promo/teemo-scout-gg-ez-197b",
+      "pricecharting_set_slug": "riftbound-promo",
+      "image_url": null
+    }
+  ]
+}

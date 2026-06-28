@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Riftbound Scanner</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="intro">
+        <div>
+          <p class="kicker">Riftbound Scanner MVP</p>
+          <h1>Scan a Riftbound card, confirm the print, check the price.</h1>
+        </div>
+        <div class="health" id="health">Checking scanner...</div>
+      </section>
+
+      <section class="workspace" aria-label="Scanner workspace">
+        <form class="panel controls" id="resolve-form">
+          <div class="live-card">
+            <div class="live-header">
+              <label>Live camera</label>
+              <div class="live-actions">
+                <button class="secondary" id="start-camera" type="button">Start camera</button>
+                <button class="secondary hidden" id="stop-camera" type="button">Stop</button>
+              </div>
+            </div>
+            <div class="live-view hidden" id="live-view">
+              <video id="live-video" autoplay muted playsinline></video>
+              <div class="bbox-layer" id="live-layer" aria-hidden="true"></div>
+              <div class="live-badge" id="live-badge">Looking for card</div>
+            </div>
+            <canvas class="hidden" id="live-canvas"></canvas>
+            <button class="secondary hidden" id="capture-frame" type="button">Capture frame</button>
+            <div class="form-status" id="live-status" role="status" aria-live="polite"></div>
+          </div>
+
+          <div class="scan-card">
+            <label for="card-image">Card photo</label>
+            <div class="photo-input">
+              <input id="card-image" name="image" type="file" accept="image/*" capture="environment" />
+              <div class="photo-copy">
+                <strong id="photo-title">Choose or take a photo</strong>
+                <span id="photo-meta">Use the full card face, with the lower-left collector line visible.</span>
+              </div>
+            </div>
+            <div class="preview hidden" id="preview-wrap">
+              <img id="preview-image" alt="Selected card preview" />
+              <button class="secondary" id="clear-photo" type="button">Clear photo</button>
+            </div>
+          </div>
+
+          <div class="split">
+            <label>
+              Card language
+              <select name="language">
+                <option value="EN">English</option>
+                <option value="ES">Spanish</option>
+                <option value="FR">French</option>
+                <option value="DE">German</option>
+                <option value="IT">Italian</option>
+                <option value="ZH-CN">S-Chinese</option>
+              </select>
+            </label>
+            <label>
+              Seller country
+              <select name="seller_country">
+                <option value="ES">Spain</option>
+                <option value="FR">France</option>
+                <option value="DE">Germany</option>
+                <option value="IT">Italy</option>
+                <option value="PT">Portugal</option>
+                <option value="GB">United Kingdom</option>
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Candidates
+            <input name="top_k" type="number" min="1" max="20" value="5" />
+          </label>
+
+          <fieldset>
+            <legend>Price</legend>
+            <label class="radio"><input type="radio" name="price_mode" value="min" checked /> Min</label>
+            <label class="radio"><input type="radio" name="price_mode" value="trend" /> Trend</label>
+          </fieldset>
+
+          <button id="submit-button" type="submit">Search image</button>
+          <div class="form-status" id="form-status" role="status" aria-live="polite"></div>
+        </form>
+
+        <section class="panel result" aria-live="polite">
+          <div class="empty" id="empty-state">
+            <h2>No card resolved</h2>
+            <p>Add a card photo to search the visual index by image similarity.</p>
+          </div>
+          <div class="resolved hidden" id="resolved">
+            <div class="card-summary">
+              <div class="card-art hidden" id="card-art-wrap">
+                <img id="card-art" alt="" />
+              </div>
+              <div>
+                <p class="label">Card</p>
+                <h2 id="card-name"></h2>
+                <p id="card-meta"></p>
+              </div>
+            </div>
+            <div class="price">
+              <p class="label" id="price-label"></p>
+              <strong id="price-value"></strong>
+              <span id="price-meta"></span>
+              <a class="source-link hidden" id="price-source" href="#" rel="noreferrer" target="_blank">Open price source</a>
+            </div>
+            <div class="diagnostics" id="diagnostics"></div>
+            <div class="match-list" id="match-list"></div>
+          </div>
+        </section>
+
+        <section class="panel debug hidden" id="debug-panel">
+          <div>
+            <p class="label">Visual debug</p>
+            <h2>YOLO crop check</h2>
+          </div>
+          <div class="debug-grid">
+            <figure class="debug-figure">
+              <figcaption>Original photo with YOLO box</figcaption>
+              <div class="bbox-stage" id="bbox-stage">
+                <img id="bbox-image" alt="Original uploaded card photo with YOLO detection overlay" />
+                <div class="bbox-layer" id="bbox-layer" aria-hidden="true"></div>
+              </div>
+              <p class="debug-note" id="bbox-note"></p>
+            </figure>
+            <figure class="debug-figure">
+              <figcaption>Preprocessed card sent to embedding</figcaption>
+              <img id="debug-image" alt="Preprocessed card used for visual embedding" />
+            </figure>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

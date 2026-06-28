@@ -1,0 +1,31 @@
+{
+  "image_id": "images__pricecharting__riftbound-origins__10_legion_rearguard.jpg",
+  "labels": [
+    "card",
+    "name",
+    "collector"
+  ],
+  "boxes": [
+    {
+      "label": "name",
+      "x": 11.603571428571428,
+      "y": 134.67223880597015,
+      "width": 98.325,
+      "height": 18.03462686567164
+    },
+    {
+      "label": "card",
+      "x": 3.664285714285711,
+      "y": 2.316417910447761,
+      "width": 165.1982142857143,
+      "height": 235.3671641791045
+    },
+    {
+      "label": "collector",
+      "x": 7.939285714285715,
+      "y": 226.67940298507463,
+      "width": 30.230357142857144,
+      "height": 10.392835820895527
+    }
+  ]
+}

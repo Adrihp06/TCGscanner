@@ -1,0 +1,27 @@
+{
+  "OGN-045": {
+    "min": 0.02,
+    "trend": 1.67,
+    "currency": "EUR"
+  },
+  "OGN-296": {
+    "min": 0.05,
+    "trend": 0.14,
+    "currency": "EUR"
+  },
+  "UNL-064": {
+    "min": 0.09,
+    "trend": 0.22,
+    "currency": "EUR"
+  },
+  "UNL-001A": {
+    "min": 4.5,
+    "trend": 6.25,
+    "currency": "EUR"
+  },
+  "UNL-261": {
+    "min": 14.95,
+    "trend": 18.4,
+    "currency": "EUR"
+  }
+}

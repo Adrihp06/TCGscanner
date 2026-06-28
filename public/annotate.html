@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Riftbound Annotation Tool</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/annotate.css" />
+  </head>
+  <body>
+    <main class="annotator-shell">
+      <aside class="annotator-sidebar">
+        <div>
+          <p class="kicker">Dataset</p>
+          <h1>Riftbound boxes</h1>
+        </div>
+        <label>
+          Image
+          <select id="image-select"></select>
+        </label>
+        <label>
+          Upload real photo
+          <input id="upload-input" type="file" accept="image/*" />
+        </label>
+        <fieldset>
+          <legend>Label</legend>
+          <label class="radio"><input type="radio" name="label" value="card" checked /> card</label>
+        </fieldset>
+        <div class="tool-row">
+          <button id="save-button" type="button">Save boxes</button>
+          <button id="delete-button" class="secondary" type="button">Delete selected</button>
+        </div>
+        <a class="export-link" href="/api/export/coco" target="_blank">Open COCO export</a>
+        <div class="annotation-list" id="annotation-list"></div>
+      </aside>
+      <section class="annotator-stage">
+        <canvas id="annotation-canvas"></canvas>
+      </section>
+    </main>
+    <script src="/annotate.js"></script>
+  </body>
+</html>

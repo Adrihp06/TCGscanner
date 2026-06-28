@@ -1,0 +1,24 @@
+{
+  "image_id": "images__pricecharting__riftbound-unleashed__3_mischevious_marai.jpg",
+  "labels": [
+    "card",
+    "name",
+    "collector"
+  ],
+  "boxes": [
+    {
+      "label": "name",
+      "x": 13.821428571428573,
+      "y": 141.55495978552278,
+      "width": 105.10714285714286,
+      "height": 19.30294906166222
+    },
+    {
+      "label": "collector",
+      "x": 11.892857142857142,
+      "y": 231.95710455764075,
+      "width": 27.642857142857142,
+      "height": 6.434316353887397
+    }
+  ]
+}

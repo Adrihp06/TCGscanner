@@ -1,0 +1,16 @@
+.venv/
+.venv.bak/
+__pycache__/
+*.py[cod]
+.DS_Store
+.pytest_cache/
+.cache/
+dataset/
+runs/
+models/
+data/vector_db/
+data/huggingface/
+images/official/
+reports/
+certs/
+yolov8*.pt
