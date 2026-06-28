@@ -350,7 +350,7 @@ function clearDebug() {
 
 async function detectLiveFrame() {
   if (liveDetecting || liveAutoScanLocked || !liveStream || liveVideo.readyState < 2) return;
-  const blob = await captureLiveBlob();
+  const blob = await captureLiveBlob(720, 0.68);
   if (!blob) return;
 
   liveDetecting = true;
