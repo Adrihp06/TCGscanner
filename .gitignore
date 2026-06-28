@@ -19,3 +19,6 @@ artifacts/
 certs/
 yolov8*.pt
 private_planning/
+docs/LINKEDIN_POST_DRAFT.md
+docs/ARCHITECTURE_IMAGE_GUIDE.md
+docs/PUBLICATION_CHECKLIST.md
