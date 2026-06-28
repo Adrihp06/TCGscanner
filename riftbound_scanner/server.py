@@ -4,6 +4,7 @@ import argparse
 import cgi
 import json
 import mimetypes
+import os
 import re
 import ssl
 import tempfile
@@ -23,6 +24,10 @@ PUBLIC_DIR = ROOT / "public"
 IMAGE_DIR = ROOT / "images"
 ANNOTATION_DIR = ROOT / "annotations"
 ANNOTATION_LABELS = ["card"]
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_IMAGE_UPLOAD_BYTES = int(os.getenv("RIFTBOUND_MAX_IMAGE_UPLOAD_BYTES", str(8 * 1024 * 1024)))
+MAX_JSON_BODY_BYTES = int(os.getenv("RIFTBOUND_MAX_JSON_BODY_BYTES", str(256 * 1024)))
+MAX_TOP_K = int(os.getenv("RIFTBOUND_MAX_TOP_K", "20"))
 
 
 class RiftboundHandler(BaseHTTPRequestHandler):
@@ -33,13 +38,11 @@ class RiftboundHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path.startswith("/images/"):
-            root = ROOT
-            relative = parsed.path.lstrip("/")
+            file_path = self._resolve_static_path(parsed.path.removeprefix("/images/"), IMAGE_DIR)
         else:
-            root = PUBLIC_DIR
             relative = "index.html" if parsed.path in {"", "/"} else parsed.path.lstrip("/")
-        file_path = (root / relative).resolve()
-        if not str(file_path).startswith(str(root.resolve())) or not file_path.is_file():
+            file_path = self._resolve_static_path(relative, PUBLIC_DIR)
+        if file_path is None:
             self.send_response(HTTPStatus.NOT_FOUND)
             self.end_headers()
             return
@@ -62,13 +65,19 @@ class RiftboundHandler(BaseHTTPRequestHandler):
             )
             return
         if parsed.path == "/api/dataset/images":
+            if not self._require_dataset_tools():
+                return
             self._send_json(self._dataset_images())
             return
         if parsed.path.startswith("/api/annotations/"):
+            if not self._require_dataset_tools():
+                return
             image_id = parsed.path.removeprefix("/api/annotations/")
             self._send_json(self._load_annotation(image_id))
             return
         if parsed.path == "/api/export/coco":
+            if not self._require_dataset_tools():
+                return
             self._send_json(self._export_coco())
             return
         if parsed.path == "/api/cards":
@@ -91,17 +100,21 @@ class RiftboundHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/dataset/upload":
+            if not self._require_dataset_tools():
+                return
             try:
                 result = self._upload_dataset_image()
             except ValueError as exc:
                 self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
                 return
-            except Exception as exc:
-                self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+            except Exception:
+                self._send_internal_error()
                 return
             self._send_json(result)
             return
         if parsed.path.startswith("/api/annotations/"):
+            if not self._require_dataset_tools():
+                return
             try:
                 image_id = parsed.path.removeprefix("/api/annotations/")
                 payload = self._read_json()
@@ -117,8 +130,8 @@ class RiftboundHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
                 return
-            except Exception as exc:
-                self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+            except Exception:
+                self._send_internal_error()
                 return
             self._send_json(result)
             return
@@ -128,8 +141,8 @@ class RiftboundHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
                 return
-            except Exception as exc:
-                self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+            except Exception:
+                self._send_internal_error()
                 return
             self._send_json(result)
             return
@@ -140,8 +153,8 @@ class RiftboundHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
                 return
-            except Exception as exc:
-                self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+            except Exception:
+                self._send_internal_error()
                 return
             self._send_json(result)
             return
@@ -154,12 +167,13 @@ class RiftboundHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
             return
-        except Exception as exc:
-            self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+        except Exception:
+            self._send_internal_error()
             return
         self._send_json(result)
 
     def _scan_image(self) -> dict[str, object]:
+        self._validate_content_length(MAX_IMAGE_UPLOAD_BYTES)
         form = cgi.FieldStorage(
             fp=self.rfile,
             headers=self.headers,
@@ -178,12 +192,12 @@ class RiftboundHandler(BaseHTTPRequestHandler):
         if price_mode not in {"min", "trend"}:
             raise ValueError("price_mode must be 'min' or 'trend'.")
 
-        suffix = Path(getattr(image_field, "filename", "") or "card.jpg").suffix or ".jpg"
+        suffix = self._image_suffix(getattr(image_field, "filename", "") or "card.jpg")
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as temp:
             temp.write(image_field.file.read())
             temp.flush()
             image_path = temp.name
-            top_k = int(self._field_value(form, "top_k", "5"))
+            top_k = self._parse_top_k(self._field_value(form, "top_k", "5"))
             crop_hint = self._crop_hint_from_form(form)
             result = self.visual_matcher.search(image_path, top_k=top_k, crop_hint=crop_hint)
 
@@ -223,6 +237,7 @@ class RiftboundHandler(BaseHTTPRequestHandler):
         return {"price": self._price_json(price)}
 
     def _detect_region(self) -> dict[str, object]:
+        self._validate_content_length(MAX_IMAGE_UPLOAD_BYTES)
         form = cgi.FieldStorage(
             fp=self.rfile,
             headers=self.headers,
@@ -235,7 +250,7 @@ class RiftboundHandler(BaseHTTPRequestHandler):
         if image_field is None or not getattr(image_field, "file", None):
             raise ValueError("Provide an image file.")
 
-        suffix = Path(getattr(image_field, "filename", "") or "frame.jpg").suffix or ".jpg"
+        suffix = self._image_suffix(getattr(image_field, "filename", "") or "frame.jpg")
         start = time.perf_counter()
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as temp:
             temp.write(image_field.file.read())
@@ -271,6 +286,7 @@ class RiftboundHandler(BaseHTTPRequestHandler):
         )
 
     def _upload_dataset_image(self) -> dict[str, object]:
+        self._validate_content_length(MAX_IMAGE_UPLOAD_BYTES)
         form = cgi.FieldStorage(
             fp=self.rfile,
             headers=self.headers,
@@ -284,9 +300,7 @@ class RiftboundHandler(BaseHTTPRequestHandler):
             raise ValueError("Provide an image file.")
 
         filename = Path(getattr(image_field, "filename", "") or "sample.jpg").name
-        suffix = Path(filename).suffix.lower()
-        if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
-            raise ValueError("Supported image formats: jpg, jpeg, png, webp.")
+        suffix = self._image_suffix(filename)
 
         target_dir = IMAGE_DIR / "user_samples"
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -403,15 +417,17 @@ class RiftboundHandler(BaseHTTPRequestHandler):
 
     def _serve_static(self, path: str) -> None:
         if path.startswith("/images/"):
-            self._serve_file_from_root(path, ROOT)
+            self._serve_file_from_root(path.removeprefix("/images/"), IMAGE_DIR)
+            return
+        if path.startswith("/annotate") and not self._dataset_tools_enabled():
+            self._send_error(HTTPStatus.NOT_FOUND, "File not found.")
             return
         relative = "index.html" if path in {"", "/"} else path.lstrip("/")
         self._serve_file_from_root(relative, PUBLIC_DIR)
 
     def _serve_file_from_root(self, path: str, root: Path) -> None:
-        relative = path.lstrip("/")
-        file_path = (root / relative).resolve()
-        if not str(file_path).startswith(str(root.resolve())) or not file_path.is_file():
+        file_path = self._resolve_static_path(path, root)
+        if file_path is None:
             self._send_error(HTTPStatus.NOT_FOUND, "File not found.")
             return
         content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
@@ -502,7 +518,59 @@ class RiftboundHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         if length <= 0:
             return {}
+        if length > MAX_JSON_BODY_BYTES:
+            raise ValueError("JSON body is too large.")
         return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    @staticmethod
+    def _resolve_static_path(path: str, root: Path) -> Path | None:
+        root = root.resolve()
+        candidate = (root / path.lstrip("/")).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            return None
+        return candidate if candidate.is_file() else None
+
+    @staticmethod
+    def _image_suffix(filename: str) -> str:
+        suffix = Path(filename).suffix.lower() or ".jpg"
+        if suffix not in IMAGE_EXTENSIONS:
+            raise ValueError("Supported image formats: jpg, jpeg, png, webp.")
+        return suffix
+
+    @staticmethod
+    def _parse_top_k(value: str) -> int:
+        try:
+            top_k = int(value)
+        except ValueError as exc:
+            raise ValueError("top_k must be an integer.") from exc
+        if top_k < 1 or top_k > MAX_TOP_K:
+            raise ValueError(f"top_k must be between 1 and {MAX_TOP_K}.")
+        return top_k
+
+    def _validate_content_length(self, max_bytes: int) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ValueError("Invalid Content-Length.") from exc
+        if length <= 0:
+            raise ValueError("Content-Length is required.")
+        if length > max_bytes:
+            raise ValueError(f"Request body is too large. Maximum allowed is {max_bytes} bytes.")
+
+    def _dataset_tools_enabled(self) -> bool:
+        return os.getenv("RIFTBOUND_ENABLE_DATASET_TOOLS", "").lower() in {"1", "true", "yes"}
+
+    def _require_dataset_tools(self) -> bool:
+        if not self._dataset_tools_enabled():
+            self._send_error(HTTPStatus.NOT_FOUND, "Endpoint not found.")
+            return False
+        token = os.getenv("RIFTBOUND_DATASET_TOKEN")
+        if token and self.headers.get("X-Dataset-Token") != token:
+            self._send_error(HTTPStatus.FORBIDDEN, "Forbidden.")
+            return False
+        return True
 
     @staticmethod
     def _image_id(path: str) -> str:
@@ -536,6 +604,9 @@ class RiftboundHandler(BaseHTTPRequestHandler):
 
     def _send_error(self, status: HTTPStatus, message: str) -> None:
         self._send_json({"error": message}, status)
+
+    def _send_internal_error(self) -> None:
+        self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal server error.")
 
     @staticmethod
     def _card_json(card) -> dict[str, object]:

@@ -192,6 +192,8 @@ uv run python -m riftbound_scanner.server --host 0.0.0.0 --port 8443 \
   --keyfile certs/local-key.pem
 ```
 
+Only use `--host 0.0.0.0` on a trusted local network. The scanner API is intended for local development and demos, not direct public internet exposure.
+
 Open this from the phone and accept the local certificate warning:
 
 ```text
@@ -244,6 +246,18 @@ Important endpoints:
 - `POST /api/price`: asynchronous price lookup for a resolved card.
 - `GET /api/cards`: catalog search.
 - `GET /api/cards/{set}/{number}`: manual card lookup.
+
+Dataset upload and annotation endpoints are disabled by default. For local dataset work only, start the server with:
+
+```bash
+RIFTBOUND_ENABLE_DATASET_TOOLS=1 uv run python -m riftbound_scanner.server
+```
+
+To require a local token for those dataset endpoints:
+
+```bash
+RIFTBOUND_ENABLE_DATASET_TOOLS=1 RIFTBOUND_DATASET_TOKEN=... uv run python -m riftbound_scanner.server
+```
 
 ## Evaluation
 
