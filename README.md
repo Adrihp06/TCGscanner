@@ -65,6 +65,8 @@ uv run python -m riftbound_scanner.server --host 0.0.0.0 --port 8443 \
 
 Open `https://192.168.1.175:8443` on the phone and accept the local certificate warning.
 
+Live camera mode runs YOLO on lightweight preview frames and reuses the stable card box for the final scan. The final `/api/scan-image` response returns the card match first; price is loaded separately through `/api/price` so slow provider calls do not block recognition.
+
 ## Search One Image
 
 ```bash

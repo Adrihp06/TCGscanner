@@ -13,7 +13,7 @@ from riftbound_scanner.official_gallery import (
     official_card_to_dict,
 )
 from riftbound_scanner.vector_store import CardVectorStore
-from riftbound_scanner.visual import CardPreprocessor
+from riftbound_scanner.visual import CardPreprocessor, CropHint
 
 
 class VisualPipelineTest(unittest.TestCase):
@@ -76,6 +76,16 @@ class VisualPipelineTest(unittest.TestCase):
             result = CardPreprocessor(output_size=384).preprocess(path, use_detector=False)
             self.assertEqual(result.image.size, (384, 384))
             self.assertTrue(result.debug_image.startswith("data:image/jpeg;base64,"))
+
+    def test_preprocessor_uses_crop_hint(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "scene.jpg"
+            Image.new("RGB", (1000, 800), (20, 20, 20)).save(path)
+            hint = CropHint(x=100, y=80, width=500, height=700, image_width=1000, image_height=800)
+            result = CardPreprocessor(output_size=384).preprocess(path, crop_hint=hint)
+            self.assertEqual(result.image.size, (384, 384))
+            self.assertTrue(result.detector_debug["used_crop_hint"])
+            self.assertEqual(result.detector_debug["detections"][0]["source"], "live_crop_hint")
 
     def test_vector_store_search(self):
         with tempfile.TemporaryDirectory() as temp_dir:

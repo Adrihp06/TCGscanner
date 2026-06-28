@@ -45,20 +45,57 @@ class VisualSearchResult:
     warnings: list[str]
 
 
+@dataclass(frozen=True)
+class CropHint:
+    x: float
+    y: float
+    width: float
+    height: float
+    image_width: float
+    image_height: float
+
+
 class CardPreprocessor:
     def __init__(self, output_size: int = 384, detector: RegionDetector | None = None) -> None:
         self.output_size = output_size
         self.detector = detector or RegionDetector()
 
-    def preprocess(self, image_path: str | Path, use_detector: bool = True) -> PreprocessResult:
+    def preprocess(
+        self,
+        image_path: str | Path,
+        use_detector: bool = True,
+        crop_hint: CropHint | None = None,
+    ) -> PreprocessResult:
         image = Image.open(image_path).convert("RGB")
         warnings: list[str] = []
         card = image
         used_detector = False
+        used_crop_hint = False
         detections_debug: list[dict[str, object]] = []
         selected_detection: int | None = None
 
-        if use_detector:
+        if crop_hint is not None:
+            crop = self._scale_crop_hint(crop_hint, image.width, image.height)
+            if crop is not None:
+                card = image.crop(crop)
+                used_crop_hint = True
+                selected_detection = 0
+                detections_debug = [
+                    {
+                        "label": "card",
+                        "confidence": 1.0,
+                        "x": float(crop[0]),
+                        "y": float(crop[1]),
+                        "width": float(crop[2] - crop[0]),
+                        "height": float(crop[3] - crop[1]),
+                        "selected": True,
+                        "source": "live_crop_hint",
+                    }
+                ]
+            else:
+                warnings.append("Live crop hint was invalid; using detector fallback.")
+
+        if use_detector and not used_crop_hint:
             detections = self.detector.detect(image_path)
             detections_debug = [
                 {
@@ -103,18 +140,33 @@ class CardPreprocessor:
         card = ImageEnhance.Sharpness(card).enhance(1.05)
         return PreprocessResult(
             image=card,
-            used_detector=used_detector,
+            used_detector=used_detector or used_crop_hint,
             warnings=warnings,
             debug_image=self._image_data_url(card),
             detector_debug={
                 "enabled": use_detector,
                 "used": used_detector,
+                "used_crop_hint": used_crop_hint,
                 "image_width": image.width,
                 "image_height": image.height,
                 "selected_index": selected_detection,
                 "detections": detections_debug,
             },
         )
+
+    @staticmethod
+    def _scale_crop_hint(hint: CropHint, image_width: int, image_height: int) -> tuple[int, int, int, int] | None:
+        if min(hint.width, hint.height, hint.image_width, hint.image_height) <= 0:
+            return None
+        scale_x = image_width / hint.image_width
+        scale_y = image_height / hint.image_height
+        x1 = max(0, int(hint.x * scale_x))
+        y1 = max(0, int(hint.y * scale_y))
+        x2 = min(image_width, int((hint.x + hint.width) * scale_x))
+        y2 = min(image_height, int((hint.y + hint.height) * scale_y))
+        if x2 - x1 < 20 or y2 - y1 < 20:
+            return None
+        return x1, y1, x2, y2
 
     def _opencv_card_crop(self, image: Image.Image) -> Image.Image | None:
         try:
@@ -266,10 +318,10 @@ class VisualCardMatcher:
     def available(self) -> bool:
         return self.store.exists()
 
-    def search(self, image_path: str | Path, top_k: int = 5) -> VisualSearchResult:
+    def search(self, image_path: str | Path, top_k: int = 5, crop_hint: CropHint | None = None) -> VisualSearchResult:
         timings: dict[str, float] = {}
         start = time.perf_counter()
-        preprocessed = self.preprocessor.preprocess(image_path)
+        preprocessed = self.preprocessor.preprocess(image_path, crop_hint=crop_hint)
         timings["preprocess"] = (time.perf_counter() - start) * 1000
 
         start = time.perf_counter()

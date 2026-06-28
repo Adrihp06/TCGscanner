@@ -43,6 +43,7 @@ let liveTimer = null;
 let liveDetecting = false;
 let liveStableReadings = 0;
 let liveLastBox = null;
+let liveLastDetection = null;
 let liveAutoScanLocked = false;
 
 async function loadHealth() {
@@ -72,7 +73,12 @@ function renderResult(data) {
   cardName.textContent = card.name;
   cardMeta.textContent = `${card.set_code} ${card.printed_number} · ${card.set_name}`;
   renderCardArt(card);
-  renderPrice(data.price);
+  if (data.price) {
+    renderPrice(data.price);
+  } else {
+    renderPriceLoading();
+    loadPrice(card);
+  }
   renderMatches(data.matches || []);
 
   const confidence = Math.round(best.score * 100);
@@ -118,6 +124,35 @@ function renderPrice(price) {
   }
   priceSource.href = url;
   priceSource.classList.remove("hidden");
+}
+
+function renderPriceLoading() {
+  priceLabel.textContent = "Price";
+  priceValue.textContent = "Loading...";
+  priceMeta.textContent = "Fetching provider price";
+  priceSource.classList.add("hidden");
+  priceSource.removeAttribute("href");
+}
+
+async function loadPrice(card) {
+  try {
+    const response = await fetch("/api/price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        card_id: card.card_id,
+        language: form.elements.language.value,
+        seller_country: form.elements.seller_country.value,
+        price_mode: form.elements.price_mode.value,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Price unavailable");
+    renderPrice(data.price);
+  } catch (error) {
+    renderPrice(null);
+    priceMeta.textContent = "Price provider unavailable";
+  }
 }
 
 function renderMatches(matches) {
@@ -257,7 +292,8 @@ startCamera.addEventListener("click", async () => {
     liveAutoScanLocked = false;
     liveStableReadings = 0;
     liveLastBox = null;
-    liveTimer = window.setInterval(detectLiveFrame, 850);
+    liveLastDetection = null;
+    liveTimer = window.setInterval(detectLiveFrame, 450);
   } catch (error) {
     liveStatus.textContent = "Camera permission failed. Use HTTPS and allow camera access.";
   }
@@ -342,13 +378,13 @@ async function detectLiveFrame() {
   }
 }
 
-async function scanImageBlob(blob, filename) {
+async function scanImageBlob(blob, filename, cropDetection = null) {
   setCapturedPreview(blob, filename);
   setBusy(true, "Scanning captured card...");
   try {
     const response = await fetch("/api/scan-image", {
       method: "POST",
-      body: buildScanForm(blob, filename),
+      body: buildScanForm(blob, filename, cropDetection),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -379,13 +415,21 @@ function setCapturedPreview(blob, filename) {
   photoMeta.textContent = `${formatBytes(blob.size)} captured from live camera.`;
 }
 
-function buildScanForm(blob, filename) {
+function buildScanForm(blob, filename, cropDetection = null) {
   const body = new FormData();
   body.append("image", blob, filename);
   body.append("language", form.elements.language.value);
   body.append("seller_country", form.elements.seller_country.value);
   body.append("top_k", form.elements.top_k.value);
   body.append("price_mode", form.elements.price_mode.value);
+  if (cropDetection?.image_width && cropDetection?.image_height) {
+    body.append("bbox_x", String(cropDetection.x));
+    body.append("bbox_y", String(cropDetection.y));
+    body.append("bbox_width", String(cropDetection.width));
+    body.append("bbox_height", String(cropDetection.height));
+    body.append("bbox_image_width", String(cropDetection.image_width));
+    body.append("bbox_image_height", String(cropDetection.image_height));
+  }
   return body;
 }
 
@@ -420,6 +464,7 @@ function updateLiveStability(detection, latencyMs) {
   if (!detection || detection.label !== "card" || detection.confidence < 0.78) {
     liveStableReadings = 0;
     liveLastBox = null;
+    liveLastDetection = null;
     liveBadge.textContent = "Looking for card";
     liveStatus.textContent = latencyMs ? `No stable card · ${latencyMs} ms` : "No stable card";
     return;
@@ -434,6 +479,7 @@ function updateLiveStability(detection, latencyMs) {
     Math.abs(current.height - liveLastBox.height) < 0.05;
   liveStableReadings = stable && area > 0.12 ? liveStableReadings + 1 : 1;
   liveLastBox = current;
+  liveLastDetection = { ...detection, image_width: liveCanvas.width, image_height: liveCanvas.height };
   liveBadge.textContent = liveStableReadings >= 2 ? "Hold still" : "Card found";
   liveStatus.textContent = `${Math.round(detection.confidence * 100)}% · stable ${liveStableReadings}/3 · ${
     latencyMs ?? "?"
@@ -457,6 +503,7 @@ function stopLiveCamera() {
   liveDetecting = false;
   liveStableReadings = 0;
   liveLastBox = null;
+  liveLastDetection = null;
   liveLayer.replaceChildren();
   if (liveStream) {
     for (const track of liveStream.getTracks()) track.stop();
