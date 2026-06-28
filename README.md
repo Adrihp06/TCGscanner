@@ -24,6 +24,102 @@ The system separates detection from identification:
 
 A visual embedding is a numerical representation of an image in a high-dimensional vector space. The model is not asked to output a card name directly. Instead, visually similar images should produce nearby vectors. That makes card identification a nearest-neighbor search problem against a curated reference catalog.
 
+```mermaid
+flowchart LR
+    %% Riftbound / TCG Visual Scanner Architecture
+
+    subgraph offline["Offline Training and Indexing"]
+        direction LR
+
+        subgraph detector_training["Detector Training Pipeline"]
+            direction LR
+            ds["Universal TCG Dataset<br/>MTG, Pokemon, Grand Archive, others"]:::data
+            clean["Cleaning and Filtering<br/>remove non-representative samples"]:::data
+            yolo_fmt["YOLO Annotation Format<br/>bbox from corners / polygons"]:::data
+            aug["Data Augmentation<br/>blur, lighting, perspective, scale"]:::training
+            train["YOLO Card Detector Training<br/>single class: card"]:::training
+            eval["Evaluation Metrics<br/>precision, recall, mAP50, mAP50-95"]:::training
+            registry["Model Registry<br/>detector version + training metadata"]:::registry
+
+            ds --> clean --> yolo_fmt --> aug --> train --> eval --> registry
+        end
+
+        subgraph reference_index["Reference Catalog Indexing"]
+            direction LR
+            catalog["Riftbound Reference Catalog<br/>metadata + official images"]:::data
+            ref_pre["Reference Preprocessing<br/>stable 384 x 384 input"]:::embedding
+            ref_embed["SigLIP 2 Visual Embeddings<br/>one vector per card"]:::embedding
+            vdb[("LanceDB Vector Index<br/>embeddings + card metadata")]:::database
+
+            catalog --> ref_pre --> ref_embed --> vdb
+        end
+    end
+
+    subgraph online["Online Live Scanner"]
+        direction LR
+        camera["Mobile / Web Camera"]:::runtime
+        preview["Lightweight Detection Frames<br/>compressed preview stream"]:::runtime
+        detector["YOLO Card Detector<br/>loaded from registry"]:::training
+        overlay["Bounding Box Overlay<br/>live visual feedback"]:::runtime
+        stable["Stable Detection Trigger<br/>card boundary confirmed"]:::runtime
+        capture["High-Quality Capture<br/>preserve recognition detail"]:::runtime
+        crop["Crop and Normalize<br/>detected card region"]:::embedding
+        query_embed["SigLIP 2 Query Embedding<br/>photo to vector"]:::embedding
+        search["Nearest-Neighbor Search<br/>similarity over vector index"]:::database
+        match["Ranked Card Match<br/>card id, set, confidence"]:::runtime
+        ui["UI Result<br/>match first, enrichment later"]:::runtime
+        price["Async Price Lookup<br/>PriceCharting / future providers"]:::external
+
+        camera --> preview --> detector --> overlay --> stable --> capture --> crop --> query_embed --> search --> match --> ui
+        match -. non-blocking .-> price -. enrich .-> ui
+    end
+
+    subgraph audit["Audit and Observability"]
+        direction LR
+        dataset_version["Dataset Version"]:::audit
+        detector_version["Detector Version"]:::audit
+        embedding_version["Embedding Model Version"]:::audit
+        preprocessing_config["Preprocessing Config"]:::audit
+        index_version["Index Version"]:::audit
+        latency["Latency Metrics"]:::audit
+        logs["Recognition Logs"]:::audit
+
+        dataset_version --- detector_version --- embedding_version --- preprocessing_config --- index_version --- latency --- logs
+    end
+
+    registry --> detector
+    vdb --> search
+
+    ds -. versioned by .-> dataset_version
+    registry -. versioned by .-> detector_version
+    ref_embed -. versioned by .-> embedding_version
+    ref_pre -. config .-> preprocessing_config
+    vdb -. versioned by .-> index_version
+    search -. measured by .-> latency
+    match -. recorded in .-> logs
+
+    subgraph legend["Legend"]
+        direction TB
+        legend_data["Data / Dataset"]:::data
+        legend_training["Training / Model Lifecycle"]:::training
+        legend_embedding["Embedding / Preprocessing"]:::embedding
+        legend_database["Vector Database"]:::database
+        legend_runtime["Runtime Scanner"]:::runtime
+        legend_external["External Provider"]:::external
+        legend_audit["Audit / Observability"]:::audit
+        legend_registry["Model Registry"]:::registry
+    end
+
+    classDef data fill:#dbeafe,stroke:#2563eb,color:#0f172a,stroke-width:1px
+    classDef training fill:#ede9fe,stroke:#7c3aed,color:#0f172a,stroke-width:1px
+    classDef embedding fill:#dcfce7,stroke:#16a34a,color:#0f172a,stroke-width:1px
+    classDef database fill:#ccfbf1,stroke:#0f766e,color:#0f172a,stroke-width:1px
+    classDef runtime fill:#ffedd5,stroke:#ea580c,color:#0f172a,stroke-width:1px
+    classDef external fill:#fee2e2,stroke:#dc2626,color:#0f172a,stroke-width:1px
+    classDef audit fill:#f1f5f9,stroke:#64748b,color:#0f172a,stroke-width:1px
+    classDef registry fill:#fef3c7,stroke:#d97706,color:#0f172a,stroke-width:1px
+```
+
 More detail:
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md)
@@ -274,3 +370,7 @@ All ignored generated artifacts can be recreated with the setup, import, index, 
 - Official artwork and isolated card images are not enough to fully represent mobile capture conditions.
 - The current product layer is an MVP: user accounts, collection vaults, historical prices, and exchange workflows are future work.
 - Pricing providers are optional backend integrations and should never be called from a client with embedded credentials.
+
+## License
+
+This project is open source under the [MIT License](LICENSE).
