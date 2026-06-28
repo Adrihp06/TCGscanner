@@ -368,7 +368,7 @@ async function detectLiveFrame() {
       liveBadge.textContent = "Captured";
       liveStatus.textContent = "Card stable. Running scanner...";
       const scanBlob = await captureLiveBlob(1280, 0.9);
-      if (scanBlob) await scanImageBlob(scanBlob, "live-card.jpg", liveLastDetection);
+      if (scanBlob) await scanImageBlob(scanBlob, "live-card.jpg");
       stopLiveCamera();
     }
   } catch (error) {
@@ -378,7 +378,7 @@ async function detectLiveFrame() {
   }
 }
 
-async function scanImageBlob(blob, filename, cropDetection = liveLastDetection) {
+async function scanImageBlob(blob, filename, cropDetection = null) {
   setCapturedPreview(blob, filename);
   setBusy(true, "Scanning captured card...");
   try {
