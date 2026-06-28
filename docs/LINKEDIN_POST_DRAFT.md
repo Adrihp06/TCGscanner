@@ -1,40 +1,42 @@
 # LinkedIn Post Draft
 
-He estado trabajando en un prototipo de scanner visual para cartas TCG. La idea es sencilla de explicar, pero interesante a nivel técnico: apuntar con la cámara a una carta, detectar su región, normalizar la imagen y buscarla por similitud visual contra un índice local.
+I have been working on a visual scanner prototype for TCG cards.
 
-El pipeline tiene dos modelos principales:
+The idea is simple to explain, but technically interesting: point a camera at a card, detect the card region, normalize the image, and search it by visual similarity against a local index.
 
-1. YOLO para localizar la carta completa en una foto o vídeo.
-2. SigLIP 2 para convertir la imagen normalizada de la carta en un embedding visual.
+The current pipeline uses two main models:
 
-El flujo actual es:
+1. YOLO to locate the full card in an image or video frame.
+2. SigLIP 2 to turn the normalized card image into a visual embedding.
 
-- importo metadatos e imágenes oficiales de Riftbound;
-- preproceso cada carta a una entrada estable de `384 x 384`;
-- genero embeddings con SigLIP 2;
-- guardo esos vectores y metadatos en LanceDB;
-- cuando llega una foto del usuario, detecto la carta, la recorto, la normalizo, genero su embedding y busco los vecinos más cercanos.
+The flow looks like this:
 
-Elegí LanceDB porque para este prototipo permite tener búsqueda vectorial local, rápida y fácil de reproducir. No necesitaba empezar con una base de datos vectorial distribuida; primero quería validar precisión, latencia y ergonomía del scanner.
+- import Riftbound metadata and official card images;
+- preprocess every card into a stable `384 x 384` input;
+- generate embeddings with SigLIP 2;
+- store vectors and metadata in LanceDB;
+- when a user image arrives, detect the card, crop it, normalize it, generate its embedding, and retrieve the nearest neighbors.
 
-Una parte importante fue separar dos problemas:
+I chose LanceDB because, for this prototype, it gives me fast local vector search with a setup that is easy to reproduce. I did not need to start with a distributed vector database before validating accuracy, latency, and the scanner experience.
 
-- detectar dónde está la carta;
-- identificar qué carta es.
+One important design decision was to separate two problems:
 
-Para detección entrené un modelo YOLO single-class (`card`) con un dataset universal de cartas TCG. Mezclé fuentes de MTG, Pokémon, Grand Archive y otros TCGs para que el detector aprendiera “forma de carta” y no solo un arte o set concreto. En el prototipo actual todavía falta añadir fotos reales de Riftbound al entrenamiento, pero ya funciona lo bastante bien para validar la experiencia.
+- detecting where the card is;
+- identifying which card it is.
 
-En la UI hice un modo live camera: el navegador envía frames ligeros al backend, YOLO devuelve la caja y se pinta el borde sobre el vídeo. Cuando la detección se mantiene estable, se captura un frame y se lanza el pipeline visual completo.
+For detection, I trained a single-class YOLO model (`card`) on a universal TCG card dataset. I mixed sources from MTG, Pokemon, Grand Archive, and other TCGs so the detector could learn the generic shape of a trading card instead of overfitting to one specific artwork style or set. The current prototype still needs more real Riftbound photos in the training data, but it already works well enough to validate the experience.
 
-La parte de rendimiento fue curiosa: el embedding caliente está alrededor de decenas de milisegundos en mi entorno, así que el cuello de botella no era solo el modelo visual. Algunas mejoras vinieron de:
+On the UI side, I built a live camera mode: the browser sends lightweight frames to the backend, YOLO returns the bounding box, and the border is drawn over the video. When the detection remains stable, the app captures a frame and runs the full visual search pipeline.
 
-- mantener modelos cargados;
-- comprimir solo los frames de detección live;
-- no bloquear el reconocimiento esperando precios;
-- separar la búsqueda visual de la consulta de precio.
+The performance work was also interesting. Warm embedding inference is already in the tens of milliseconds on my environment, so the bottleneck was not only the visual model. Some of the biggest improvements came from:
 
-El prototipo también integra precios vía PriceCharting como proveedor inicial. Para un producto real, el siguiente paso sería histórico de precios, cuentas de usuario, colecciones por TCG y set, y métricas de inversión/progreso.
+- keeping models loaded;
+- compressing only the live detection frames;
+- avoiding blocking recognition on price lookups;
+- separating visual search from pricing requests.
 
-Todavía es un MVP, pero ya demuestra algo potente: se puede construir un scanner de cartas rápido combinando detección, embeddings visuales y búsqueda vectorial sin depender de OCR ni de reglas frágiles sobre texto impreso.
+The prototype also integrates prices through PriceCharting as an initial provider. For a real product, the next steps would be user accounts, collections by TCG and set, price history, portfolio metrics, and progress tracking for collectors.
 
-Próximo paso: limpiar el repo público, documentar bien la arquitectura y seguir evolucionando la parte de producto en privado.
+It is still an MVP, but it already shows something powerful: you can build a fast card scanner by combining detection, visual embeddings, and vector search without depending on OCR or fragile rules over printed text.
+
+Next step: clean the public repository, document the architecture properly, and keep evolving the product layer privately.
