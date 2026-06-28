@@ -315,26 +315,6 @@ The selected `hybrid` run was stopped manually during epoch 42 after the validat
 | `localization_only` | corners + polygons only | 0.9957 | 1.0000 | 0.9950 | 0.9141 |
 | `hybrid` | corners + polygons + isolated full-card images | 0.9992 | 1.0000 | 0.9950 | 0.9635 |
 
-## Publishing the Detector
-
-Publishing requires a Hugging Face token in the environment:
-
-```bash
-export HUGGINGFACE_TOKEN=...
-uv run python scripts/publish_detector_to_hf.py
-```
-
-The script creates or updates:
-
-```text
-Adrihp06/TCGscanner-detector
-```
-
-It uploads:
-
-- `riftbound_regions.onnx`
-- a Hugging Face model card with SHA256, metrics, usage, and limitations
-
 ## Generated Artifacts Policy
 
 Commit:
