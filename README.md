@@ -137,6 +137,52 @@ The YOLO detector is not committed to git. It is downloaded from Hugging Face du
 https://huggingface.co/Adrihp06/TCGscanner-detector
 ```
 
+## Hardware and Runtime Notes
+
+The prototype was developed and measured on:
+
+| Component | Development environment |
+| --- | --- |
+| Machine | MacBook Pro |
+| Chip | Apple M5 Pro |
+| CPU cores | 15 cores: 5 efficiency + 10 performance |
+| GPU | Integrated Apple M5 Pro GPU, 16 cores, Metal 4 |
+| Memory | 24 GB unified memory |
+| OS | macOS / Darwin arm64 |
+| Acceleration used by embeddings | PyTorch MPS when available, otherwise CPU |
+
+Minimum practical backend requirements:
+
+| Use case | Suggested minimum |
+| --- | --- |
+| Run the HTTP backend and static UI | Python 3.12, 8 GB RAM |
+| Run visual recognition with SigLIP 2 on CPU | 16 GB RAM recommended |
+| Run live camera demo comfortably | Apple Silicon M-series, CUDA GPU, or modern CPU with enough thermal headroom |
+| Build the full local vector index | 16 GB RAM recommended and several GB of free disk/cache space |
+| Train the YOLO detector | Dedicated GPU recommended; CPU training is not practical for iteration |
+
+Observed warm inference/retrieval timings on the development machine:
+
+| Measurement | Result |
+| --- | ---: |
+| SigLIP 2 warm embedding p50, PriceCharting eval | ~44.46 ms |
+| SigLIP 2 warm embedding range, PriceCharting eval | ~38.97-51.12 ms |
+| End-to-end warm visual retrieval p50, PriceCharting eval | ~50.91 ms |
+| End-to-end warm visual retrieval p95, PriceCharting eval | ~55.63 ms |
+| End-to-end warm visual retrieval p50, synthetic official-image eval | ~57.04 ms |
+| End-to-end warm visual retrieval p95, synthetic official-image eval | ~60.47 ms |
+
+The first request in a fresh process is much slower because it loads model weights and initializes the backend. The numbers above exclude that cold-start path and are the relevant figures for a warm local server.
+
+Training notes for the current YOLO detector:
+
+| Experiment | Status | Epochs completed | Test mAP50 | Test mAP50-95 |
+| --- | --- | ---: | ---: | ---: |
+| `localization_only` | completed | 80 | 0.9950 | 0.9141 |
+| `hybrid` | stopped manually during epoch 42 | 41 | 0.9950 | 0.9635 |
+
+The training audit did not record wall-clock training duration, so the repository reports epoch counts and evaluation metrics rather than an estimated elapsed time. Future training runs should record hardware, start/end timestamps, batch size, image size, and per-epoch duration in the audit output.
+
 ## Quickstart
 
 Install dependencies:
