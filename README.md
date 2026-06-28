@@ -19,6 +19,11 @@ uv sync
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full data, embedding, vector search, API, UI, and artifact policy.
 
+Additional planning and publication notes:
+
+- [`docs/PUBLICATION_CHECKLIST.md`](docs/PUBLICATION_CHECKLIST.md)
+- [`docs/LINKEDIN_POST_DRAFT.md`](docs/LINKEDIN_POST_DRAFT.md)
+
 ## Build the Official Visual Index
 
 Download the official catalog from the Riftbound card gallery:
@@ -52,20 +57,21 @@ Open `http://127.0.0.1:8000`.
 For mobile live camera mode, browsers require HTTPS. Generate a local certificate for your LAN IP and run the server on HTTPS:
 
 ```bash
+LAN_IP="$(ipconfig getifaddr en0)"  # replace with your phone-reachable LAN IP if needed
 mkdir -p certs
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
   -keyout certs/local-key.pem \
   -out certs/local-cert.pem \
-  -subj "/CN=192.168.1.175" \
-  -addext "subjectAltName=IP:192.168.1.175,DNS:localhost,IP:127.0.0.1"
+  -subj "/CN=${LAN_IP}" \
+  -addext "subjectAltName=IP:${LAN_IP},DNS:localhost,IP:127.0.0.1"
 uv run python -m riftbound_scanner.server --host 0.0.0.0 --port 8443 \
   --certfile certs/local-cert.pem \
   --keyfile certs/local-key.pem
 ```
 
-Open `https://192.168.1.175:8443` on the phone and accept the local certificate warning.
+Open `https://<LAN_IP>:8443` on the phone and accept the local certificate warning.
 
-Live camera mode runs YOLO on lightweight preview frames and reuses the stable card box for the final scan. The final `/api/scan-image` response returns the card match first; price is loaded separately through `/api/price` so slow provider calls do not block recognition.
+Live camera mode runs YOLO on lightweight preview frames. The final `/api/scan-image` response returns the card match first; price is loaded separately through `/api/price` so slow provider calls do not block recognition.
 
 ## Search One Image
 
@@ -87,7 +93,13 @@ Output is written to:
 reports/visual_retrieval_eval.json
 ```
 
-The external evaluator uses local PriceCharting images as cross-source queries against the official vector index:
+The external evaluator uses local PriceCharting images as cross-source queries against the official vector index. Import those images first:
+
+```bash
+uv run python scripts/import_pricecharting_catalog.py
+```
+
+Then run:
 
 ```bash
 uv run python scripts/eval_pricecharting_retrieval.py --top-k 5

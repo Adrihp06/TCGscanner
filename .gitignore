@@ -11,6 +11,10 @@ models/
 data/vector_db/
 data/huggingface/
 images/official/
+images/pricecharting/
+images/user_samples/
+annotations/
 reports/
 certs/
 yolov8*.pt
+private_planning/

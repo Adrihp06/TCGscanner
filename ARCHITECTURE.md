@@ -100,6 +100,8 @@ Important endpoints:
 
 - `GET /api/health`: checks vector index availability and embedding model
 - `POST /api/scan-image`: multipart image search, returns ranked visual matches
+- `POST /api/detect-region`: lightweight YOLO detection for live camera frames
+- `POST /api/price`: async price lookup for a resolved card
 - `GET /api/cards`: catalog search
 - `GET /api/cards/{set}/{number}`: manual catalog lookup
 - annotation endpoints remain for YOLO card-box training
@@ -180,7 +182,10 @@ Commit:
 Do not commit:
 
 - `images/official/`
+- `images/pricecharting/`
+- `images/user_samples/`
 - `data/vector_db/`
+- `annotations/`
 - `reports/`
 - trained models and run outputs
 
