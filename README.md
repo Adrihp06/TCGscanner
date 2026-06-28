@@ -23,6 +23,7 @@ Additional planning and publication notes:
 
 - [`docs/PUBLICATION_CHECKLIST.md`](docs/PUBLICATION_CHECKLIST.md)
 - [`docs/LINKEDIN_POST_DRAFT.md`](docs/LINKEDIN_POST_DRAFT.md)
+- [`docs/ARCHITECTURE_IMAGE_GUIDE.md`](docs/ARCHITECTURE_IMAGE_GUIDE.md)
 
 ## Build the Official Visual Index
 
