@@ -25,99 +25,63 @@ The system separates detection from identification:
 A visual embedding is a numerical representation of an image in a high-dimensional vector space. The model is not asked to output a card name directly. Instead, visually similar images should produce nearby vectors. That makes card identification a nearest-neighbor search problem against a curated reference catalog.
 
 ```mermaid
-flowchart LR
-    %% Riftbound / TCG Visual Scanner Architecture
+flowchart TB
+    title["TCGscanner<br/>local visual card recognition"]:::title
 
-    subgraph offline["Offline Training and Indexing"]
-        direction LR
-
-        subgraph detector_training["Detector Training Pipeline"]
-            direction LR
-            ds["Universal TCG Dataset<br/>MTG, Pokemon, Grand Archive, others"]:::data
-            clean["Cleaning and Filtering<br/>remove non-representative samples"]:::data
-            yolo_fmt["YOLO Annotation Format<br/>bbox from corners / polygons"]:::data
-            aug["Data Augmentation<br/>blur, lighting, perspective, scale"]:::training
-            train["YOLO Card Detector Training<br/>single class: card"]:::training
-            eval["Evaluation Metrics<br/>precision, recall, mAP50, mAP50-95"]:::training
-            registry["Model Registry<br/>detector version + training metadata"]:::registry
-
-            ds --> clean --> yolo_fmt --> aug --> train --> eval --> registry
-        end
-
-        subgraph reference_index["Reference Catalog Indexing"]
-            direction LR
-            catalog["Riftbound Reference Catalog<br/>metadata + official images"]:::data
-            ref_pre["Reference Preprocessing<br/>stable 384 x 384 input"]:::embedding
-            ref_embed["SigLIP 2 Visual Embeddings<br/>one vector per card"]:::embedding
-            vdb[("LanceDB Vector Index<br/>embeddings + card metadata")]:::database
-
-            catalog --> ref_pre --> ref_embed --> vdb
-        end
+    subgraph training["1. Detector training"]
+        ds["Universal TCG dataset<br/>corners / polygons / full-card samples"]:::data
+        prep["clean + normalize + augment"]:::data
+        yolo["YOLO card detector<br/>single class: card"]:::model
+        metrics["training audit<br/>mAP50, mAP50-95, recall"]:::audit
+        registry["published ONNX detector<br/>Hugging Face model artifact"]:::artifact
+        ds --> prep --> yolo --> metrics --> registry
     end
 
-    subgraph online["Online Live Scanner"]
-        direction LR
-        camera["Mobile / Web Camera"]:::runtime
-        preview["Lightweight Detection Frames<br/>compressed preview stream"]:::runtime
-        detector["YOLO Card Detector<br/>loaded from registry"]:::training
-        overlay["Bounding Box Overlay<br/>live visual feedback"]:::runtime
-        stable["Stable Detection Trigger<br/>card boundary confirmed"]:::runtime
-        capture["High-Quality Capture<br/>preserve recognition detail"]:::runtime
-        crop["Crop and Normalize<br/>detected card region"]:::embedding
-        query_embed["SigLIP 2 Query Embedding<br/>photo to vector"]:::embedding
-        search["Nearest-Neighbor Search<br/>similarity over vector index"]:::database
-        match["Ranked Card Match<br/>card id, set, confidence"]:::runtime
-        ui["UI Result<br/>match first, enrichment later"]:::runtime
-        price["Async Price Lookup<br/>PriceCharting / future providers"]:::external
-
-        camera --> preview --> detector --> overlay --> stable --> capture --> crop --> query_embed --> search --> match --> ui
-        match -. non-blocking .-> price -. enrich .-> ui
+    subgraph indexing["2. Reference index"]
+        catalog["Riftbound catalog<br/>metadata + official images"]:::data
+        ref_pre["card preprocessing<br/>384 x 384"]:::embed
+        ref_embed["SigLIP 2 embeddings<br/>one vector per reference card"]:::embed
+        lancedb[("LanceDB<br/>local vector index")]:::db
+        catalog --> ref_pre --> ref_embed --> lancedb
     end
 
-    subgraph audit["Audit and Observability"]
-        direction LR
-        dataset_version["Dataset Version"]:::audit
-        detector_version["Detector Version"]:::audit
-        embedding_version["Embedding Model Version"]:::audit
-        preprocessing_config["Preprocessing Config"]:::audit
-        index_version["Index Version"]:::audit
-        latency["Latency Metrics"]:::audit
-        logs["Recognition Logs"]:::audit
-
-        dataset_version --- detector_version --- embedding_version --- preprocessing_config --- index_version --- latency --- logs
+    subgraph runtime["3. Live scanner runtime"]
+        camera["mobile / web camera"]:::runtime
+        detect["YOLO detection<br/>live bounding box"]:::model
+        capture["stable detection<br/>high-quality capture"]:::runtime
+        query["crop + normalize<br/>SigLIP 2 query vector"]:::embed
+        search["nearest-neighbor search"]:::db
+        result["ranked card match<br/>returned before pricing"]:::runtime
+        price["async price lookup"]:::external
+        ui["scanner UI"]:::runtime
+        camera --> detect --> capture --> query --> search --> result --> ui
+        result -. non-blocking .-> price -. enrich .-> ui
     end
 
-    registry --> detector
-    vdb --> search
-
-    ds -. versioned by .-> dataset_version
-    registry -. versioned by .-> detector_version
-    ref_embed -. versioned by .-> embedding_version
-    ref_pre -. config .-> preprocessing_config
-    vdb -. versioned by .-> index_version
-    search -. measured by .-> latency
-    match -. recorded in .-> logs
-
-    subgraph legend["Legend"]
-        direction TB
-        legend_data["Data / Dataset"]:::data
-        legend_training["Training / Model Lifecycle"]:::training
-        legend_embedding["Embedding / Preprocessing"]:::embedding
-        legend_database["Vector Database"]:::database
-        legend_runtime["Runtime Scanner"]:::runtime
-        legend_external["External Provider"]:::external
-        legend_audit["Audit / Observability"]:::audit
-        legend_registry["Model Registry"]:::registry
+    subgraph audit["4. Reproducibility"]
+        versions["dataset / detector / embedding / index versions"]:::audit
+        latency["latency metrics"]:::audit
+        logs["recognition logs"]:::audit
+        versions --> latency --> logs
     end
 
-    classDef data fill:#dbeafe,stroke:#2563eb,color:#0f172a,stroke-width:1px
-    classDef training fill:#ede9fe,stroke:#7c3aed,color:#0f172a,stroke-width:1px
-    classDef embedding fill:#dcfce7,stroke:#16a34a,color:#0f172a,stroke-width:1px
-    classDef database fill:#ccfbf1,stroke:#0f766e,color:#0f172a,stroke-width:1px
-    classDef runtime fill:#ffedd5,stroke:#ea580c,color:#0f172a,stroke-width:1px
-    classDef external fill:#fee2e2,stroke:#dc2626,color:#0f172a,stroke-width:1px
-    classDef audit fill:#f1f5f9,stroke:#64748b,color:#0f172a,stroke-width:1px
-    classDef registry fill:#fef3c7,stroke:#d97706,color:#0f172a,stroke-width:1px
+    title --> training --> runtime
+    title --> indexing --> runtime
+    registry -. loaded by setup .-> detect
+    lancedb -. queried by runtime .-> search
+    training -. recorded in .-> audit
+    indexing -. recorded in .-> audit
+    runtime -. measured by .-> audit
+
+    classDef title fill:#ffffff,stroke:#0f172a,color:#0f172a,stroke-width:2px
+    classDef data fill:#dbeafe,stroke:#2563eb,color:#0f172a
+    classDef model fill:#ede9fe,stroke:#7c3aed,color:#0f172a
+    classDef embed fill:#dcfce7,stroke:#16a34a,color:#0f172a
+    classDef db fill:#ccfbf1,stroke:#0f766e,color:#0f172a
+    classDef runtime fill:#ffedd5,stroke:#ea580c,color:#0f172a
+    classDef external fill:#fee2e2,stroke:#dc2626,color:#0f172a
+    classDef audit fill:#f1f5f9,stroke:#64748b,color:#0f172a
+    classDef artifact fill:#fef3c7,stroke:#d97706,color:#0f172a
 ```
 
 More detail:
