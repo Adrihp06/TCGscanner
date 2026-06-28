@@ -15,6 +15,7 @@ images/pricecharting/
 images/user_samples/
 annotations/
 reports/
+artifacts/
 certs/
 yolov8*.pt
 private_planning/
