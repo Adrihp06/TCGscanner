@@ -101,6 +101,113 @@ Blocks:
 
 These should appear as a bottom rail connected to both offline and online lanes.
 
+## Mermaid Diagram
+
+Use this Mermaid diagram as the canonical architecture source. It can be rendered in GitHub Markdown, Mermaid Live Editor, Obsidian, Notion exports, or documentation sites that support Mermaid.
+
+```mermaid
+flowchart LR
+    %% Riftbound / TCG Visual Scanner Architecture
+
+    subgraph offline["Offline Training and Indexing"]
+        direction LR
+
+        subgraph detector_training["Detector Training Pipeline"]
+            direction LR
+            ds["Universal TCG Dataset<br/>MTG, Pokemon, Grand Archive, others"]:::data
+            clean["Cleaning and Filtering<br/>remove non-representative samples"]:::data
+            yolo_fmt["YOLO Annotation Format<br/>bbox from corners / polygons"]:::data
+            aug["Data Augmentation<br/>blur, lighting, perspective, scale"]:::training
+            train["YOLO Card Detector Training<br/>single class: card"]:::training
+            eval["Evaluation Metrics<br/>precision, recall, mAP50, mAP50-95"]:::training
+            registry["Model Registry<br/>detector version + training metadata"]:::registry
+
+            ds --> clean --> yolo_fmt --> aug --> train --> eval --> registry
+        end
+
+        subgraph reference_index["Reference Catalog Indexing"]
+            direction LR
+            catalog["Riftbound Reference Catalog<br/>metadata + official images"]:::data
+            ref_pre["Reference Preprocessing<br/>stable 384 x 384 input"]:::embedding
+            ref_embed["SigLIP 2 Visual Embeddings<br/>one vector per card"]:::embedding
+            vdb[("LanceDB Vector Index<br/>embeddings + card metadata")]:::database
+
+            catalog --> ref_pre --> ref_embed --> vdb
+        end
+    end
+
+    subgraph online["Online Live Scanner"]
+        direction LR
+        camera["Mobile / Web Camera"]:::runtime
+        preview["Lightweight Detection Frames<br/>compressed preview stream"]:::runtime
+        detector["YOLO Card Detector<br/>loaded from registry"]:::training
+        overlay["Bounding Box Overlay<br/>live visual feedback"]:::runtime
+        stable["Stable Detection Trigger<br/>card boundary confirmed"]:::runtime
+        capture["High-Quality Capture<br/>preserve recognition detail"]:::runtime
+        crop["Crop and Normalize<br/>detected card region"]:::embedding
+        query_embed["SigLIP 2 Query Embedding<br/>photo to vector"]:::embedding
+        search["Nearest-Neighbor Search<br/>similarity over vector index"]:::database
+        match["Ranked Card Match<br/>card id, set, confidence"]:::runtime
+        ui["UI Result<br/>match first, enrichment later"]:::runtime
+        price["Async Price Lookup<br/>PriceCharting / future providers"]:::external
+
+        camera --> preview --> detector --> overlay --> stable --> capture --> crop --> query_embed --> search --> match --> ui
+        match -. non-blocking .-> price -. enrich .-> ui
+    end
+
+    subgraph audit["Audit and Observability"]
+        direction LR
+        dataset_version["Dataset Version"]:::audit
+        detector_version["Detector Version"]:::audit
+        embedding_version["Embedding Model Version"]:::audit
+        preprocessing_config["Preprocessing Config"]:::audit
+        index_version["Index Version"]:::audit
+        latency["Latency Metrics"]:::audit
+        logs["Recognition Logs"]:::audit
+
+        dataset_version --- detector_version --- embedding_version --- preprocessing_config --- index_version --- latency --- logs
+    end
+
+    registry --> detector
+    vdb --> search
+
+    ds -. versioned by .-> dataset_version
+    registry -. versioned by .-> detector_version
+    ref_embed -. versioned by .-> embedding_version
+    ref_pre -. config .-> preprocessing_config
+    vdb -. versioned by .-> index_version
+    search -. measured by .-> latency
+    match -. recorded in .-> logs
+
+    subgraph legend["Legend"]
+        direction TB
+        legend_data["Data / Dataset"]:::data
+        legend_training["Training / Model Lifecycle"]:::training
+        legend_embedding["Embedding / Preprocessing"]:::embedding
+        legend_database["Vector Database"]:::database
+        legend_runtime["Runtime Scanner"]:::runtime
+        legend_external["External Provider"]:::external
+        legend_audit["Audit / Observability"]:::audit
+        legend_registry["Model Registry"]:::registry
+    end
+
+    classDef data fill:#dbeafe,stroke:#2563eb,color:#0f172a,stroke-width:1px
+    classDef training fill:#ede9fe,stroke:#7c3aed,color:#0f172a,stroke-width:1px
+    classDef embedding fill:#dcfce7,stroke:#16a34a,color:#0f172a,stroke-width:1px
+    classDef database fill:#ccfbf1,stroke:#0f766e,color:#0f172a,stroke-width:1px
+    classDef runtime fill:#ffedd5,stroke:#ea580c,color:#0f172a,stroke-width:1px
+    classDef external fill:#fee2e2,stroke:#dc2626,color:#0f172a,stroke-width:1px
+    classDef audit fill:#f1f5f9,stroke:#64748b,color:#0f172a,stroke-width:1px
+    classDef registry fill:#fef3c7,stroke:#d97706,color:#0f172a,stroke-width:1px
+```
+
+### Mermaid Export Notes
+
+- Render with a light theme.
+- Export as SVG first, then PNG at `1920 x 1080` if the target platform needs raster.
+- If labels become too dense for LinkedIn, keep this as the full documentation diagram and create a simplified social image from it.
+- Preserve the dashed arrows for versioning, metrics, and async enrichment. They communicate non-runtime-control relationships.
+
 ## Visual Encoding
 
 Use consistent colors by system responsibility:
